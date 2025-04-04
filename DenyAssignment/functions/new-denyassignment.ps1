@@ -1,4 +1,4 @@
-function New-DenyAssignmen {
+function New-DenyAssignment {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory = $true)]
