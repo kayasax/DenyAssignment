@@ -1,18 +1,22 @@
 function Invoke-DenyAssignment {
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'Subscription')]
     param (
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, ParameterSetName = 'Subscription')]
         [string]$SubscriptionId,
 
+        [Parameter(Mandatory = $true, ParameterSetName = 'Scope')]
+        [ValidatePattern('^/providers/Microsoft.Management/managementGroups/|/subscriptions/|/resourceGroups/')]
+        [string]$Scope,
+        
         [Parameter(Mandatory = $true)]
         [string]$JsonBody,
-
+        
         [Parameter(Mandatory = $false)]
-        [switch]$WhatIf
+        [string]$ApiVersion = "2024-07-01-preview"
     )
-
-    # Parse the JSON to extract the deny assignment ID
+    
     try {
+        # Parse the JSON to extract the deny assignment ID
         $denyAssignmentObject = $JsonBody | ConvertFrom-Json
         $denyAssignmentId = $denyAssignmentObject.name
     }
@@ -21,34 +25,30 @@ function Invoke-DenyAssignment {
         return
     }
 
-    # Construct the URL
-    $apiVersion = "2024-07-01-preview"
-    $url = "https://management.azure.com/subscriptions/$SubscriptionId/providers/Microsoft.Authorization/denyAssignments/$denyAssignmentId`?api-version=$apiVersion"
-
+    # Construct the URL based on parameter set
+    $baseUrl = if ($PSCmdlet.ParameterSetName -eq 'Subscription') {
+        "https://management.azure.com/subscriptions/$SubscriptionId"
+    } else {
+        "https://management.azure.com$Scope"
+    }
+    
+    $url = "$baseUrl/providers/Microsoft.Authorization/denyAssignments/$denyAssignmentId`?api-version=$ApiVersion"
+    
     Write-Verbose "Creating deny assignment with ID: $denyAssignmentId"
     Write-Verbose "URL: $url"
-
-    if ($WhatIf) {
-        Write-Host "What if: Would create deny assignment with ID $denyAssignmentId in subscription $SubscriptionId" -ForegroundColor Yellow
-        Write-Host "Request URL: $url" -ForegroundColor Yellow
-        Write-Host "Request body: $JsonBody" -ForegroundColor Yellow
-        return
-    }
-
+    
     try {
-       
-            Write-Verbose "Using Az PowerShell module for authentication"
-            $response = Invoke-AzRestMethod -Method PUT -Uri $url -Payload $JsonBody
-            
-            if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
-                Write-Host "Successfully created deny assignment (response code: $($response.StatusCode))"
-                return $response.Content
-            }
-            else {
-                Write-Host "Failed to create deny assignment. Status code: $($response.StatusCode). Error: $($response.Content)"
-                return $response.Content
-            }
+        # Use Az module for authentication
+        $response = Invoke-AzRestMethod -Method PUT -Uri $url -Payload $JsonBody
         
+        if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
+            Write-Verbose "Successfully created deny assignment"
+            return $response.Content | ConvertFrom-Json
+        }
+        else {
+            Write-Error "Failed to create deny assignment. Status code: $($response.StatusCode). Error: $($response.Content)"
+            return $response.Content
+        }
     }
     catch {
         Write-Error "Error creating deny assignment: $_"
@@ -56,5 +56,4 @@ function Invoke-DenyAssignment {
     }
 }
 
-# Export function when the script is dot-sourced
 Export-ModuleMember -Function Invoke-DenyAssignment

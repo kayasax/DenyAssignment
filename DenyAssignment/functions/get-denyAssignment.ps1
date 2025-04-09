@@ -1,8 +1,12 @@
 function Get-DenyAssignment {
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'Subscription')]
     param (
-        [Parameter(Mandatory = $true)]
+        [Parameter(Mandatory = $true, ParameterSetName = 'Subscription')]
         [string]$SubscriptionId,
+        
+        [Parameter(Mandatory = $true, ParameterSetName = 'Scope')]
+        [ValidatePattern('^/providers/Microsoft.Management/managementGroups/|/subscriptions/|/resourceGroups/')]
+        [string]$Scope,
         
         [Parameter(Mandatory = $false)]
         [string]$ApiVersion = "2024-07-01-preview",
@@ -11,15 +15,21 @@ function Get-DenyAssignment {
         [switch]$Raw
     )
 
-    # Construct the URL
-    $url = "https://management.azure.com/subscriptions/$SubscriptionId/providers/Microsoft.Authorization/denyAssignments?api-version=$ApiVersion"
+    # Construct the URL based on parameter set
+    $baseUrl = if ($PSCmdlet.ParameterSetName -eq 'Subscription') {
+        "https://management.azure.com/subscriptions/$SubscriptionId"
+    } else {
+        "https://management.azure.com$Scope"
+    }
+    
+    $url = "$baseUrl/providers/Microsoft.Authorization/denyAssignments?api-version=$ApiVersion"
 
-    Write-Verbose "Querying deny assignments for subscription: $SubscriptionId"
+    Write-Verbose "Querying deny assignments for $($PSCmdlet.ParameterSetName): $($PSCmdlet.ParameterSetName -eq 'Subscription' ? $SubscriptionId : $Scope)"
     Write-Verbose "URL: $url"
 
     try {
         $response = Invoke-AzRestMethod -Method GET -Uri $url
-            
+        
         if ($response.StatusCode -ge 200 -and $response.StatusCode -lt 300) {
             Write-Verbose "Successfully retrieved deny assignments"
             # Convert the JSON string to PowerShell objects

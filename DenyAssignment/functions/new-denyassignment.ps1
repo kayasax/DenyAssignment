@@ -1,5 +1,5 @@
 function New-DenyAssignment {
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'Subscription')]
     param (
         [Parameter(Mandatory = $true)]
         [string[]]$ExcludePrincipals,
@@ -7,6 +7,13 @@ function New-DenyAssignment {
         [Parameter(Mandatory = $true)]
         [string[]]$Actions,
         
+        [Parameter(Mandatory = $true, ParameterSetName = 'Subscription')]
+        [string]$SubscriptionId,
+
+        [Parameter(Mandatory = $true, ParameterSetName = 'Scope')]
+        [ValidatePattern('^/providers/Microsoft.Management/managementGroups/|/subscriptions/|/resourceGroups/')]
+        [string]$Scope,
+
         [Parameter(Mandatory = $false)]
         [string]$Name = [System.Guid]::NewGuid().ToString(),
         
@@ -55,6 +62,14 @@ function New-DenyAssignment {
         type = "Microsoft.Authorization/denyAssignments"
     }
     
-    # Convert to JSON and return
-    return $denyAssignment | ConvertTo-Json -Depth 10
+    # Convert to JSON
+    $json = $denyAssignment | ConvertTo-Json -Depth 10
+
+    # Call Invoke-DenyAssignment with appropriate parameters
+    if ($PSCmdlet.ParameterSetName -eq 'Subscription') {
+        Invoke-DenyAssignment -SubscriptionId $SubscriptionId -JsonBody $json
+    }
+    else {
+        Invoke-DenyAssignment -Scope $Scope -JsonBody $json
+    }
 }
