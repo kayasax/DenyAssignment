@@ -29,7 +29,7 @@ function New-DenyAssignment {
     foreach ($id in $ExcludePrincipals) {
         $formattedExcludePrincipals += @{
             id = $id
-            type = "User"
+            #type = "User"
         }
     }
     
